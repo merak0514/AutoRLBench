@@ -14,10 +14,10 @@ jobs:
       - name: Make room
         run: sudo rm -rf /usr/local/lib/android /opt/ghc /usr/share/dotnet /opt/hostedtoolcache
       - name: Pull exact public candidate
-        run: docker pull ghcr.io/merak0514/autorlbench-justrl2@sha256:10a679e6954d7f2e4c12ca34c73caf5fa07019a061293e3417dfab6c4a7a818d
+        run: docker pull ghcr.io/merak0514/autorlbench-justrl2@sha256:cc32d641e90f613029bc64e802dd330f5205b26cf3bb447e67ebb485a68ea0d2
       - name: Check pinned source and runtime imports
         run: |
-          docker run --rm --entrypoint bash -v "$PWD:/review:ro" ghcr.io/merak0514/autorlbench-justrl2@sha256:10a679e6954d7f2e4c12ca34c73caf5fa07019a061293e3417dfab6c4a7a818d -lc '
+          docker run --rm --entrypoint bash -v "$PWD:/review:ro" ghcr.io/merak0514/autorlbench-justrl2@sha256:cc32d641e90f613029bc64e802dd330f5205b26cf3bb447e67ebb485a68ea0d2 -lc '
           set -euo pipefail
           export PYTHONPATH=/root/Megatron-LM:/sgl-workspace/sglang/python
           python3 -c "import torch,numpy,scipy; print(torch.__version__, numpy.__version__, scipy.__version__); assert numpy.__version__ == \"1.26.4\"; assert scipy.__version__ == \"1.15.3\""
