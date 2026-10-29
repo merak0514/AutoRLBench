@@ -1,7 +1,7 @@
 name: Build JustRL2 candidate
 on:
   push:
-    branches: [build/justrl2-mcore37-20261030]
+    branches: [build/justrl2-ray-20261030]
     paths: [proposals/miles_ppo_empty_shard_collective/justrl2/Dockerfile.candidate, proposals/miles_ppo_empty_shard_collective/justrl2/rebuild_te.sh]
 permissions:
   contents: read
@@ -29,6 +29,6 @@ jobs:
           file: proposals/miles_ppo_empty_shard_collective/justrl2/Dockerfile.candidate
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/merak0514/autorlbench-justrl2:cp2dp2-mcore37-20261030
+          tags: ghcr.io/merak0514/autorlbench-justrl2:cp2dp2-ray-20261030
           provenance: false
           sbom: false
