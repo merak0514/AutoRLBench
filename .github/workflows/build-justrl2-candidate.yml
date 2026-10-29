@@ -1,0 +1,33 @@
+name: Build JustRL2 candidate
+on:
+  push:
+    branches: [build/justrl2-candidate-20261029]
+permissions:
+  contents: read
+  packages: write
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Make room for CUDA base image
+        run: |
+          sudo rm -rf /usr/local/lib/android /opt/ghc /usr/share/dotnet /opt/hostedtoolcache
+          docker system prune --all --force
+          df -h /
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+      - name: Login to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: Build and push pinned candidate
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        with:
+          context: proposals/miles_ppo_empty_shard_collective/justrl2
+          file: proposals/miles_ppo_empty_shard_collective/justrl2/Dockerfile.candidate
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/merak0514/autorlbench-justrl2:cp2dp2-20261029
+          provenance: false
+          sbom: false
