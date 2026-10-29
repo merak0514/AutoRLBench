@@ -1,0 +1,31 @@
+name: Smoke test built JustRL2 runtime
+on:
+  push:
+    branches: [build/justrl2-candidate-20261029]
+    paths: [.github/workflows/smoke-justrl2-candidate.yml]
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Make room
+        run: sudo rm -rf /usr/local/lib/android /opt/ghc /usr/share/dotnet /opt/hostedtoolcache
+      - name: Pull exact public candidate
+        run: docker pull ghcr.io/merak0514/autorlbench-justrl2@sha256:10a679e6954d7f2e4c12ca34c73caf5fa07019a061293e3417dfab6c4a7a818d
+      - name: Check pinned source and runtime imports
+        run: |
+          docker run --rm --entrypoint bash -v "$PWD:/review:ro" ghcr.io/merak0514/autorlbench-justrl2@sha256:10a679e6954d7f2e4c12ca34c73caf5fa07019a061293e3417dfab6c4a7a818d -lc '
+          set -euo pipefail
+          export PYTHONPATH=/root/Megatron-LM:/sgl-workspace/sglang/python
+          python3 -c "import torch,numpy,scipy; print(torch.__version__, numpy.__version__, scipy.__version__); assert numpy.__version__ == \"1.26.4\"; assert scipy.__version__ == \"1.15.3\""
+          curl -fsSL https://codeload.github.com/merak0514/JustRL-II/tar.gz/75814318f243af7e39af337c1173fc3927c9635b -o /tmp/source.tar.gz
+          mkdir /tmp/source
+          tar xzf /tmp/source.tar.gz -C /tmp/source --strip-components=1
+          python3 /review/proposals/miles_ppo_empty_shard_collective/justrl2/build_case.py --source /tmp/source --output /tmp/pair
+          cd /tmp/pair/healthy
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          python3 -c "import miles.utils.arguments; import miles.backends.megatron_utils.actor; import miles.backends.megatron_utils.model; import train; print(\"JUSTRL2_RUNTIME_IMPORTS_PASSED\")"
+          '
