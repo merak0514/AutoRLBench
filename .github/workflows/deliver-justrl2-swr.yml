@@ -1,0 +1,76 @@
+name: Deliver immutable JustRL2 runtime to LIS SWR
+on:
+  push:
+    branches: [delivery/justrl2-cc32d641-20261029]
+    paths: [.github/workflows/deliver-justrl2-swr.yml]
+permissions:
+  contents: read
+concurrency:
+  group: justrl2-swr-cc32d641-20261029
+  cancel-in-progress: false
+jobs:
+  deliver:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      IMAGE_REF: ghcr.io/merak0514/autorlbench-justrl2@sha256:cc32d641e90f613029bc64e802dd330f5205b26cf3bb447e67ebb485a68ea0d2
+      DELIVERY_VERSION: cp2dp2-20261029-cc32d641-ghdirect
+      LIS_API_URL: https://lis.modelbest.co/api/v1
+      LIS_UPDATE_CHECK: '0'
+    steps:
+      - name: Make room on ephemeral runner
+        run: |
+          sudo rm -rf /usr/local/lib/android /opt/ghc /usr/share/dotnet /opt/hostedtoolcache
+          docker system prune --all --force
+          df -h /
+      - name: Install checksum-pinned official lisctl
+        run: |
+          set -euo pipefail
+          curl --retry 3 -fsSL https://lis.modelbest.co/api/v1/cli/releases/1.2.19/download/linux/amd64 -o "$RUNNER_TEMP/lisctl.tar.gz"
+          printf '%s  %s\n' d7e3da2fc5267dfa339203118a0b9909ae591b4400d65bf9dbd298973b5a8a2c "$RUNNER_TEMP/lisctl.tar.gz" | sha256sum -c -
+          tar xzf "$RUNNER_TEMP/lisctl.tar.gz" -C "$RUNNER_TEMP"
+          sudo install -m 0755 "$RUNNER_TEMP/lisctl" /usr/local/bin/lisctl
+          lisctl version
+          lisctl schema image upload > "$RUNNER_TEMP/image-upload-schema.json"
+      - name: Pull and verify immutable public image
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE_REF"
+          actual_config="$(docker image inspect "$IMAGE_REF" --format '{{.Id}}')"
+          test "$actual_config" = sha256:bf52488436540e315631825b3e6d4c5be33b8a1dbc960f5f97cef9fc511a08f8
+          printf 'Verified source manifest: %s\nVerified config: %s\n' "$IMAGE_REF" "$actual_config"
+      - name: Official direct upload and sanitized receipt
+        env:
+          LIS_API_TOKEN: ${{ secrets.AUTORLBENCH_LIS_DELIVERY_20261029 }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess, sys, time
+          assert os.environ.get('LIS_API_TOKEN'), 'Missing encrypted delivery credential'
+          root = pathlib.Path(os.environ['RUNNER_TEMP'])
+          stdout_path, stderr_path = root / 'lis-upload.stdout', root / 'lis-upload.stderr'
+          cmd = ['lisctl', '--format=json', '--quiet', '--timeout', '60s', 'image', 'upload', os.environ['IMAGE_REF'], '--name', 'autorlbench-justrl2', '--version', os.environ['DELIVERY_VERSION'], '--env', 'dev', '--engine', 'raycluster', '--platform', 'linux/amd64', '--retention-days', '180', '--wait', '--max-wait', '90m']
+          os.umask(0o077)
+          started = time.monotonic()
+          with stdout_path.open('w') as out, stderr_path.open('w') as err:
+              process = subprocess.Popen(cmd, stdout=out, stderr=err)
+              while process.poll() is None:
+                  print(json.dumps({'delivery': 'running', 'elapsed_seconds': int(time.monotonic()-started)}), flush=True)
+                  time.sleep(30)
+          safe = []
+          for path in (stdout_path, stderr_path):
+              for line in path.read_text(errors='replace').splitlines():
+                  try: row = json.loads(line)
+                  except ValueError: continue
+                  data = row.get('data') or {}
+                  item = {k: data[k] for k in ('id', 'name', 'version', 'status', 'target_uri', 'resolved_digest', 'result_id', 'progress_phase') if k in data}
+                  error = row.get('error') or {}
+                  if error: item['error_code'] = error.get('code')
+                  if item: safe.append(item)
+          receipt = {'source_image': os.environ['IMAGE_REF'], 'delivery_version': os.environ['DELIVERY_VERSION'], 'exit_code': process.returncode, 'results': safe}
+          print(json.dumps(receipt, ensure_ascii=False, indent=2), flush=True)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+              f.write('```json\n'+json.dumps(receipt, ensure_ascii=False, indent=2)+'\n```\n')
+          stdout_path.unlink(missing_ok=True)
+          stderr_path.unlink(missing_ok=True)
+          sys.exit(0 if process.returncode in (0, 101) else process.returncode)
+          PY
