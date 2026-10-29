@@ -2,6 +2,7 @@ name: Build JustRL2 candidate
 on:
   push:
     branches: [build/justrl2-candidate-20261029]
+    paths: [proposals/miles_ppo_empty_shard_collective/justrl2/Dockerfile.candidate]
 permissions:
   contents: read
   packages: write
